@@ -245,7 +245,7 @@ class LogarithmicRangeMin:
     def __len__(self):
         return len(self._minima[0])
 
-class LCA:
+class LCA(object):
     """Structure for finding least common ancestors in trees.
     Tree nodes may be any hashable objects; a tree is specified
     by a dictionary mapping nodes to their parents.
@@ -290,6 +290,7 @@ class LCA:
 class LogLCA(LCA):
     def __init__(self, parent):
         super(LogLCA, self).__init__(parent, LogarithmicRangeMin)
+
 
 class OfflineLCA(defaultdict):
     """Find LCAs of all pairs in a given sequence, using Union-Find."""
