@@ -1,4 +1,6 @@
-"""LCA.py
+"""pylca.py
+
+adapted code (LCA.py) obtained from https://www.ics.uci.edu/~eppstein/
 
 Range minimization and tree least common ancestor data structures
 with linear space and preprocessing time, and constant query time,
@@ -16,7 +18,6 @@ D. Eppstein, November 2003.
 
 import unittest,random
 from collections import defaultdict
-#from UnionFind import UnionFind
 
 """UnionFind.py
 
@@ -151,11 +152,11 @@ class RestrictedRangeMin:
     all ranges are in the same positions as the minima of the integers
     in the first positions of each pair, so the data structure still works.
     """
-    def __init__(self,X):
+    def __init__(self,X,_logtable):
         # Compute parameters for partition into blocks.
         # Position i in X becomes transformed into
         # position i&self._blockmask in block i>>self.blocklen
-        self._blocksize = _log2(len(X))//2
+        self._blocksize = _logtable[len(X)]//2
         self._blockmask = (1 << self._blocksize) - 1
         blocklen = 1 << self._blocksize
 
@@ -179,7 +180,7 @@ class RestrictedRangeMin:
         self._blocks = [ids[b] for b in blocks]
 
         # Build data structure for interblock queries
-        self._blockrange = LogarithmicRangeMin(blockmin)
+        self._blockrange = LogarithmicRangeMin(blockmin,_logtable)
         self._data = list(X)
 
     def __len__(self):
@@ -227,16 +228,17 @@ class PrecomputedRangeMin:
 class LogarithmicRangeMin:
     """RangeMin in O(n log n) space and constant query time."""
 
-    def __init__(self,X):
+    def __init__(self,X,_logtable):
         """Compute min(X[i:i+2**j]) for each possible i,j."""
         self._minima = m = [list(X)]
-        for j in range(_log2(len(X))):
+        self._logtable = _logtable
+        for j in range(_logtable[len(X)]):
             m.append(list(map(min, m[-1][:-1<<j], m[-1][1<<j:])))
 
     def __getitem__(self,it):
         """When called by X[left:right], return min(X[left:right])."""
         left,right = _decodeSlice(self,it)
-        j = _logtable[right-left]
+        j = self._logtable[right-left]
         row = self._minima[j]
         return min(row[left],row[right-2**j])
 
@@ -263,7 +265,13 @@ class LCA:
         self._visit(children,levels,root[0],0)
         if [x for x in parent if x not in self._representatives]:
             raise ValueError("LCA input is not a tree")
-        self._rangemin = RangeMinFactory(levels)
+
+        """Make table of logs reach up to n and return floor(log_2(n))."""
+        _logtable = [None,0]
+        while len(_logtable) <= len(levels):
+            _logtable.extend([1+_logtable[-1]]*len(_logtable))
+
+        self._rangemin = RangeMinFactory(levels, _logtable)
 
     def __call__(self,*nodes):
         """Find least common ancestor of a set of nodes."""
@@ -278,6 +286,10 @@ class LCA:
         for child in children[node]:
             self._visit(children,levels,child,level+1)
             levels.append(pair)
+
+class LogLCA(LCA):
+    def __init__(self, parent):
+        super(LogLCA, self).__init__(parent, LogarithmicRangeMin)
 
 class OfflineLCA(defaultdict):
     """Find LCAs of all pairs in a given sequence, using Union-Find."""
@@ -352,13 +364,6 @@ def _pairs(X,reversed=False):
         indices = range(len(X))
     return [(X[i],i) for i in indices]
 
-_logtable = [None,0]
-def _log2(n):
-    """Make table of logs reach up to n and return floor(log_2(n))."""
-    while len(_logtable) <= n:
-        _logtable.extend([1+_logtable[-1]]*len(_logtable))
-    return _logtable[n]
-
 # if run as "python LCA.py", run tests on random data
 # and check that RangeMin's results are correct.
 
@@ -389,23 +394,19 @@ class LCATest(unittest.TestCase):
     }
 
     def testLCA(self):
-        L = LCA(self.parent)
+        L = LCA(self.parent) # RestrictedRangeMin
         for k,v in self.lcas.items():
             self.assertEqual(L(*k),v)
 
-    def testLogLCA(self):
-        L = LCA(self.parent, LogarithmicRangeMin)
+    def testLogLCA(self): 
+        L = LogLCA(self.parent) # LogarithmicRangeMin
         for k,v in self.lcas.items():
             self.assertEqual(L(*k),v)
 
-    def testOfflineLCA(self):
+    def testOfflineLCA(self): # OfflineLCA
         L = OfflineLCA(self.parent, self.lcas.keys())
         for (p,q),v in self.lcas.items():
             self.assertEqual(L[p][q],v)
 
-	
 if __name__ == "__main__":
-    unittest.main()   
-
-
-	
+    unittest.main()
